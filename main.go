@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
+
 	problemsM := make(map[string]string)
 	problems := make([]string, 0, len(problemsM))
+	rand.Seed(time.Now().UnixNano())
 
 	file, err := os.Open("problems.csv")
 	if err != nil {
@@ -20,37 +22,50 @@ func main() {
 		return
 	}
 	defer file.Close()
+
 	reader := csv.NewReader(file)
-	fmt.Println("Loading problems...")
 	for {
 		problem, err := reader.Read()
 		if err != nil {
 			break
 		}
 		problemsM[problem[0]] = problem[1]
-	}
-	for key := range problemsM {
-		problems = append(problems, key)
+		problems = append(problems, problem[0])
 	}
 
 	correctAnswers := 0
+	totalQuestions := 5
+	timeLimit := 5
+
 	scanner := bufio.NewScanner(os.Stdin)
-	n := 4
-	x := n
-	for x > 0 {
+	timer := time.NewTimer(time.Duration(timeLimit) * time.Second)
+	fmt.Println("Loading problems...")
+
+	for totalQuestions > 0 {
 		randomIndex := rand.Intn(len(problems))
 		randomProblem := problems[randomIndex]
 		fmt.Printf("%s:", randomProblem)
+		answerCh := make(chan string)
 		scanner.Scan()
-		if err := scanner.Err(); err != nil {
-			fmt.Println("Error reading input:", err)
+
+		go func() {
+			answerCh <- scanner.Text()
+		}()
+
+		select {
+		case <-timer.C:
+			fmt.Println("\nTime's up!")
+			fmt.Printf("%v Correct answers out of %v\n", correctAnswers, totalQuestions)
 			return
+		case answer := <-answerCh:
+			answer = strings.TrimSpace(answer)
+			if problemsM[randomProblem] == answer {
+				correctAnswers++
+			}
 		}
-		answer := scanner.Text()
-		if problemsM[randomProblem] == answer {
-			correctAnswers += 1
-		}
-		x--
+		totalQuestions--
+
 	}
-	fmt.Printf("%v Correct answers out of %v", correctAnswers, n)
+
+	fmt.Printf("%v Correct answers out of %v", correctAnswers, totalQuestions)
 }
